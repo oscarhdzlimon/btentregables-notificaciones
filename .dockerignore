@@ -1,0 +1,12 @@
+
+media
+.idea
+.venv
+.git
+.env
+.env.example
+
+.gitignore
+db.sqlite3
+*.md
+*.log
