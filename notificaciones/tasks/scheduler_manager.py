@@ -21,12 +21,14 @@ def initialize_scheduler():
 
         # Programar tareas
         try:
-            scheduler_instance.add_job(send_mails, 'cron', minute='*/5', hour='8-21', id='send_mails', replace_existing=True)
+            scheduler_instance.add_job(send_mails, 'cron', minute='*/5', hour='6-21', id='send_mails', replace_existing=True)
+
             scheduler_instance.add_job(actualiza_entregables_sla, 'cron', minute='0', hour='0', id='actualiza_sla', replace_existing=True)
-            scheduler_instance.add_job(actualiza_version_entregables, 'cron', minute='5', hour='0', id='actualiza_version_entregables', replace_existing=True)
-            scheduler_instance.add_job(actualiza_sla_atencion_clientes, 'cron', hour='*/6', id='actualiza_sla_atencion_clientes', replace_existing=True)
+            scheduler_instance.add_job(actualiza_sla_atencion_clientes, 'cron', minute='5', hour='0', id='actualiza_sla_atencion_clientes', replace_existing=True)
+            scheduler_instance.add_job(actualiza_version_entregables, 'cron', minute='15', hour='0', id='actualiza_version_entregables', replace_existing=True)
 
             scheduler_instance.add_job(__limpia_datos, 'cron', day_of_week='fri', hour='6', minute='0', id='limpia_datos', replace_existing=True)
+            scheduler_instance.add_job(__baja_de_notificaciones, 'cron', minute='0', hour='1', id='notificaciones_cleanup', replace_existing=True)
         except Exception as e:
             logger.error(f"Error al programar las tareas: {str(e)}")
             raise
@@ -45,5 +47,19 @@ def __limpia_datos():
             fecha_baja__isnull=False,
             fecha_baja__lte=(timezone.now() - timedelta(days=7)),
         ).delete()
+    except Exception as e:
+        logger.error(e)
+
+
+@util.close_old_connections
+def __baja_de_notificaciones():
+    try:
+        Notificaciones.objects.filter(
+            fecha_alta__lte=(timezone.now() - timedelta(days=5)),
+            fecha_baja__isnull=True
+        ).update(
+            fecha_baja=timezone.now(),
+            usuario_baja='JOB_NOTIFICACIONES_CLEANUP',
+        )
     except Exception as e:
         logger.error(e)

@@ -9,9 +9,6 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError('The Email field must be set')
 
-        if 'id_rol' in extra_fields and isinstance(extra_fields['id_rol'], Rol):
-            extra_fields['id_rol'] = extra_fields['id_rol']
-
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
@@ -31,20 +28,20 @@ class UserManager(BaseUserManager):
         except Rol.DoesNotExist:
             raise ValueError('The Admin role must exist in the Rol table')
 
-        if extra_fields.get('is_staff') is not True:
+        if extra_fields.get('is_staff'):
             raise ValueError('Superuser must have is_staff=True.')
-        if extra_fields.get('is_superuser') is not True:
+        if extra_fields.get('is_superuser'):
             raise ValueError('Superuser must have is_superuser=True.')
 
         return self.create_user(email, password, **extra_fields)
 
 
 class AuditModel(models.Model):
-    usuario_alta = models.CharField(max_length=255, null=True, db_column='CVE_USUARIO_ALTA')
+    usuario_alta = models.CharField(max_length=255, blank=True, db_column='CVE_USUARIO_ALTA')
     fecha_alta = models.DateTimeField(null=True, db_column='STP_ALTA_REGISTRO')
-    usuario_modifica = models.CharField(max_length=255, null=True, db_column='CVE_USUARIO_MODIFICA')
+    usuario_modifica = models.CharField(max_length=255, blank=True, db_column='CVE_USUARIO_MODIFICA')
     fecha_modifica = models.DateTimeField(null=True, db_column='STP_MODIFICA_REGISTRO')
-    usuario_baja = models.CharField(max_length=255, null=True, db_column='CVE_USUARIO_BAJA')
+    usuario_baja = models.CharField(max_length=255, blank=True, db_column='CVE_USUARIO_BAJA')
     fecha_baja = models.DateTimeField(null=True, db_column='STP_BAJA_REGISTRO')
 
     class Meta:
@@ -53,8 +50,8 @@ class AuditModel(models.Model):
 
 class Rol(AuditModel):
     id = models.AutoField(primary_key=True, db_column='ID_ROL')
-    rol = models.CharField(max_length=255, null=True, db_column='REF_ROL')
-    rol_breve = models.CharField(max_length=255, null=True, db_column='REF_ROL_BREVE')
+    rol = models.CharField(max_length=255, blank=True, db_column='REF_ROL')
+    rol_breve = models.CharField(max_length=255, blank=True, db_column='REF_ROL_BREVE')
     activo = models.IntegerField(default=1, db_column='IND_ACTIVO')
 
     def __str__(self):
@@ -71,7 +68,7 @@ class Rol(AuditModel):
 
 class Empresa(AuditModel):
     id = models.AutoField(primary_key=True, db_column='ID_EMPRESA')
-    nombre = models.CharField(max_length=255, null=True, db_column='NOM_EMPRESA')
+    nombre = models.CharField(max_length=255, blank=True, db_column='NOM_EMPRESA')
 
     def __str__(self):
         return f"{self.id} - {self.nombre}"
@@ -188,7 +185,7 @@ class Contrato(AuditModel):
 class Proyecto(AuditModel):
     id = models.AutoField(primary_key=True, db_column='ID_PROYECTO')
     id_contrato = models.ForeignKey(Contrato, null=True, on_delete=models.RESTRICT, db_column='ID_CONTRATO')
-    clave_proyecto = models.CharField(null=True, max_length=255, db_column='CVE_PROYECTO')
+    clave_proyecto = models.CharField(blank=True, max_length=255, db_column='CVE_PROYECTO')
     nombre_proyecto = models.CharField(max_length=255, db_column='NOM_PROYECTO')
 
     def __str__(self):
@@ -203,7 +200,7 @@ class Proyecto(AuditModel):
 class EstatusEntregable(AuditModel):
     id = models.AutoField(primary_key=True, db_column='ID_ESTATUS')
     nombre = models.CharField(max_length=50, db_column='NOM_ESTATUS')
-    descripcion = models.CharField(max_length=255, null=True, db_column='REF_DESCRIPCION')
+    descripcion = models.CharField(max_length=255, blank=True, db_column='REF_DESCRIPCION')
 
     def __str__(self):
         return f"{self.id} - {self.nombre}"
@@ -217,7 +214,7 @@ class EstatusEntregable(AuditModel):
 class Etapa(AuditModel):
     id = models.AutoField(primary_key=True, db_column='ID_ETAPA')
     nombre = models.CharField(max_length=50, db_column='NOM_ETAPA')
-    descripcion = models.CharField(max_length=300, null=True, db_column='REF_DESCRIPCION')
+    descripcion = models.CharField(max_length=300, blank=True, db_column='REF_DESCRIPCION')
 
     def __str__(self):
         return f"{self.id} - {self.nombre}"
@@ -240,17 +237,16 @@ class OrdenServicio(AuditModel):
 
     @property
     def etapa_actual(self):
-        from datetime import date
-        today = date.today()
-
-        propuesta = InfoBlue.get_id_propuesta_by_cliente(self.id_proyecto.id_contrato.id_cliente.id)
+        propuesta = InfoBlue.get_entregables_iniciales(self.id_proyecto.id_contrato.id_cliente.id).values_list('id', flat=True)
         if propuesta:
-            propuesta_entregable = Entregable.objects.filter(id_infoblue__id=propuesta.id,
+            propuesta_entregable = Entregable.objects.filter(id_infoblue__id__in=propuesta,
                                                              id_orden=self.id,
                                                              id_estatus__id__lt=7)
             if propuesta_entregable.exists():
-                return 'Propuesta de solución pendiente'
+                return 'Entregables iniciales pendientes'
 
+        from datetime import date
+        today = date.today()
         orden_etapa = OrdenEtapa.objects.filter(
             id_orden=self,
             fecha_inicio__lte=today,
@@ -320,11 +316,17 @@ class InfoBlue(AuditModel):
     sla_verde = models.IntegerField(default=0, db_column='NUM_SLA_VERDE')
     sla_amarillo = models.IntegerField(default=0, db_column='NUM_SLA_AMARILLO')
     sla_rojo = models.IntegerField(default=0, db_column='NUM_SLA_ROJO')
+    subtipo = models.CharField(db_column='REF_SUBTIPO')
+    requerido = models.BooleanField(default=True, db_column='IND_REQUERIDO')
 
     @staticmethod
-    def get_id_propuesta_by_cliente(id_cliente):
-        propuesta_solucion = InfoBlue.objects.filter(id_cliente__id=id_cliente, entregable_inicial=1).order_by('id').first()
-        return propuesta_solucion if propuesta_solucion else InfoBlue.objects.filter(id_cliente=1, entregable_inicial=1).order_by('id').first()
+    def get_entregables_iniciales(id_cliente: int, opcionales: bool = False):
+        if opcionales:
+            entregables = InfoBlue.objects.filter(id_cliente__id=id_cliente, entregable_inicial=1).order_by('id')
+            return entregables if entregables else InfoBlue.objects.filter(id_cliente__id=1, entregable_inicial=1).order_by('id')
+        else:
+            entregables = InfoBlue.objects.filter(id_cliente__id=id_cliente, entregable_inicial=1, requerido=True).order_by('id')
+            return entregables if entregables else InfoBlue.objects.filter(id_cliente__id=1, entregable_inicial=1, requerido=True).order_by('id')
 
     def __str__(self):
         return f"{self.id} - {self.nombre}"
@@ -396,7 +398,8 @@ class Entregable(AuditModel):
 
         if version_actual:
             return version_actual.extension
-        return None
+        else:
+            return self.id_infoblue.path.name.split('.')[-1]
 
 
 class EntregableSprint(AuditModel):
@@ -466,11 +469,11 @@ class EntregableArchivo(AuditModel):
     minor_version = models.IntegerField(db_column='CVE_MINOR_VERSION')
     nombre = models.CharField(max_length=500, db_column='REF_NOMBRE')
     extension = models.CharField(max_length=500, db_column='REF_EXTENSION')
-    comentario = models.CharField(max_length=999, db_column='REF_COMENTARIO')
     path = models.FileField(max_length=700, db_column='REF_PATH')
     file_hash = models.CharField(max_length=300, db_column='REF_HASH')
     sla_actual = models.CharField(max_length=20, db_column='REF_SLA_ACTUAL')
     sla_cliente = models.CharField(max_length=20, db_column='REF_SLA_CLIENTE')
+    vobo_interno = models.BooleanField(default=False, db_column='IND_VOBO_INTERNO')
 
     def __str__(self):
         return f"[{self.id_entregable.id}] {self.id} - {self.nombre} - v{self.major_version}.{self.minor_version}"
@@ -500,6 +503,20 @@ class EntregableArchivo(AuditModel):
         db_table = 'EPMT_ENTREGABLE_ARCHIVO'
         verbose_name = 'Entregable Archivo'
         verbose_name_plural = 'Entregables Archivos'
+
+
+class EntregableArchivoComentario(AuditModel):
+    id = models.AutoField(primary_key=True, db_column='ID_ARCHIVO_COMENTARIO')
+    id_archivo = models.ForeignKey(EntregableArchivo, on_delete=models.RESTRICT, db_column='ID_ARCHIVO')
+    comentario = models.CharField(max_length=999, db_column='REF_COMENTARIO')
+
+    def __str__(self):
+        return f"{self.id_archivo.nombre} - v{self.id_archivo.major_version}.{self.id_archivo.minor_version} - {self.comentario}"
+
+    class Meta:
+        db_table = 'EPMT_ENTREGABLE_ARCHIVO_COMENTARIO'
+        verbose_name = 'Comentario Entregable Archivo'
+        verbose_name_plural = 'Comentarios Entregables Archivos'
 
 
 class TipoSprint(AuditModel):
@@ -544,6 +561,12 @@ class Notificaciones(AuditModel):
     texto = models.CharField(max_length=500, db_column='REF_TEXTO')
     template = models.CharField(max_length=50, db_column='REF_TEMPLATE')
     datos = models.JSONField(max_length=150, db_column='REF_DATOS')
+
+    @property
+    def id_cliente(self):
+        if self.id_orden:
+            return self.id_orden.id_proyecto.id_contrato.id_cliente.id
+        return None
 
     class Meta:
         db_table = 'EPMT_NOTIFICACIONES'

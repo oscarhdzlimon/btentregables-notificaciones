@@ -1,12 +1,10 @@
 import logging
-import os.path
 
 from django.template.loader import render_to_string
 from django.utils.timezone import now
 from django_apscheduler import util
 
-from btentregables_notificaciones.settings import MEDIA_ROOT
-from notificaciones.models import Notificaciones, Usuario, UsuarioOrdenServicio
+from notificaciones.models import Notificaciones, Usuario, UsuarioOrdenServicio, InfoBlue
 from notificaciones.utils import send_mail_html_attachments
 
 logger = logging.getLogger(__name__)
@@ -71,9 +69,6 @@ def __mail_rol(mail: Notificaciones):
 
 def __get_attachments(mail: Notificaciones):
     if mail.template == 'mail/nueva-orden.html':
-        return [
-            os.path.join(MEDIA_ROOT, 'entregables-fs', 'infoblues', 'infoblue-example.xlsx'),
-            os.path.join(MEDIA_ROOT, 'entregables-fs', 'infoblues', 'infoblue-example.docx'),
-        ]
+        return [entregable.path.path for entregable in InfoBlue.get_entregables_iniciales(mail.id_cliente)]
 
     return None

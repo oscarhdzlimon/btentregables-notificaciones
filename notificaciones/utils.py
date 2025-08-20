@@ -4,6 +4,7 @@ from email.mime.image import MIMEImage
 
 import environ
 from django.core.mail import EmailMultiAlternatives
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 env = environ.Env()
@@ -24,7 +25,7 @@ def send_mail_html_attachments(to, subject, body_html, image_names, attachments=
         mail.attach_alternative(body_html, 'text/html')
 
         for image_name in image_names:
-            image_path = os.path.join('static', 'images', image_name)
+            image_path = os.path.join(settings.BASE_DIR, 'static', 'images', image_name)
             with open(image_path, 'rb') as img:
                 image = MIMEImage(img.read())
                 image.add_header('Content-ID', '<{}>'.format(image_name))
