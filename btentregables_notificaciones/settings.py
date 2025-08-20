@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     'django_apscheduler',
 
     'rest_framework',
-
+    'corsheaders',
     'notificaciones.apps.NotificacionesConfig',
 ]
 
@@ -57,6 +57,7 @@ SIMPLE_JWT = {
 }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -205,6 +206,27 @@ LOGGING = {
 
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 SCHEDULER_DEFAULT = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://10.166.0.34:9090",
+    "http://localhost:4200",
+    "http://10.166.0.34:8006"
+]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'GET',
+    'POST',
+    'OPTIONS',
+    'PUT',
+    'DELETE',
+]
+
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type',
+    'x-requested-with',
+]   
 
 
 def before_send(event, hint):
