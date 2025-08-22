@@ -208,9 +208,9 @@ APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 SCHEDULER_DEFAULT = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://10.166.0.34:9090",
+    "http://10.166.0.120:9090",
     "http://localhost:4200",
-    "http://10.166.0.34:8006"
+    "http://10.166.0.120:8006"
 ]
 
 CORS_ALLOW_CREDENTIALS = True
